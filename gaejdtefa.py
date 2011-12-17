@@ -1,3 +1,9 @@
+'''
+Created on Dec 17, 2011
+@author: Andras Suller
+@version: 1.0.0
+@license: [Unlicense](http://unlicense.org/)
+
 Google Appengine JSON datetime extension for Angular
 ====================================================
 
@@ -83,3 +89,63 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 For more information, please refer to <http://unlicense.org/>
+'''
+
+import datetime, time
+import simplejson as json
+
+def _datetime_to_UTC(d):
+    epochSeconds = time.mktime(d.timetuple())
+    u = datetime.datetime.fromtimestamp(epochSeconds)
+    u = u.replace(microsecond = d.microsecond)
+    return u
+    
+def _datetime_decoder(d):
+    # logging.info('datetime_decoder called (type: %s): %s' % (type(d), d))
+    if isinstance(d, list):
+        pairs = enumerate(d)
+    elif isinstance(d, dict):
+        pairs = d.items()
+    result = []
+    for k,v in pairs:
+        if isinstance(v, basestring) and v and v[-1] == 'Z':
+            try:
+                arr = v.rsplit('.', 1)
+                v = datetime.datetime.strptime(arr[0], '%Y-%m-%dT%H:%M:%S')
+                v = v.replace(microsecond = int(arr[1][0 : 3])*1000)
+                v = _datetime_to_UTC(v)
+            except:
+                pass
+        elif isinstance(v, (dict, list)):
+            v = _datetime_decoder(v)
+        result.append((k, v))
+    if isinstance(d, list):
+        return [x[1] for x in result]
+    elif isinstance(d, dict):
+        return dict(result)
+
+def _datetime_encoder(obj):
+    if isinstance(obj, datetime.datetime):
+        utcTime = _datetime_to_UTC(obj)
+        millis = obj.microsecond / 1000
+        return utcTime.strftime('%Y-%m-%dT%H:%M:%S.'+('%03dZ' % millis))
+    return None
+
+
+def load(*args, **kwargs):
+    kwargs['object_hook'] = _datetime_decoder
+    return json.load(*args, **kwargs)
+
+def loads(*args, **kwargs):
+    kwargs['object_hook'] = _datetime_decoder
+    return json.loads(*args, **kwargs)
+
+
+def dump(*args, **kwargs):
+    kwargs['default'] = _datetime_encoder
+    return json.dump(*args, **kwargs)
+
+def dumps(*args, **kwargs):
+    kwargs['default'] = _datetime_encoder
+    return json.dumps(*args, **kwargs)
+
